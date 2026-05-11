@@ -1,8 +1,12 @@
 import path from "node:path";
-import { mkdir, open, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 
 import { PLAYSTORE_REPORT_PREFIXES } from "./constants.ts";
-import { downloadBlobToFile, listReportBlobs, storageFromEnv } from "./gcs.ts";
+import {
+  downloadBlobToFile,
+  iterReportFiles,
+  storageFromEnv,
+} from "./gcs.ts";
 import {
   entryUnchanged,
   loadManifest,
@@ -10,10 +14,8 @@ import {
   type ManifestEntry,
   type ManifestFile,
 } from "./manifest.ts";
-import { peekFirstLine } from "./text-decode.ts";
 
 const LOG = "[playstore-download]";
-const IGNORE_NAMES = new Set(["manifest.json", "inventory.json"]);
 
 function rawDir(): string {
   return (
@@ -44,69 +46,27 @@ async function ensureParentDir(filePath: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
 }
 
-async function collectRelativeFiles(dir: string, baseLen: number): Promise<string[]> {
-  const out: string[] = [];
-  const entries = await readdir(dir, { withFileTypes: true });
-  for (const ent of entries) {
-    const full = path.join(dir, ent.name);
-    const rel = full.slice(baseLen).replace(/^[/\\]/, "");
-    if (ent.isDirectory()) {
-      out.push(...(await collectRelativeFiles(full, baseLen)));
-    } else if (!IGNORE_NAMES.has(ent.name)) {
-      out.push(rel.split(path.sep).join("/"));
-    }
-  }
-  return out;
-}
-
-export interface InventoryRow {
-  relativePath: string;
-  sizeBytes: number;
-  /** Best-effort first line (CSV header for UTF-16/UTF-8 text) */
-  firstLine: string;
-  textEncoding: string;
-}
-
-async function buildInventory(rawBase: string): Promise<InventoryRow[]> {
-  const baseLen = rawBase.length;
-  const rels = await collectRelativeFiles(rawBase, baseLen);
-  const rows: InventoryRow[] = [];
-
-  for (const rel of rels.sort()) {
-    const abs = path.join(rawBase, ...rel.split("/"));
-    const st = await stat(abs);
-    if (!st.isFile()) continue;
-
-    let firstLine = "";
-    let textEncoding = "skipped";
-    try {
-      const fd = await open(abs, "r");
-      try {
-        const buf = Buffer.alloc(Math.min(st.size, 256 * 1024));
-        const { bytesRead } = await fd.read(buf, 0, buf.length, 0);
-        const peek = peekFirstLine(buf.subarray(0, bytesRead));
-        firstLine = peek.line;
-        textEncoding = peek.encoding;
-      } finally {
-        await fd.close();
-      }
-    } catch {
-      textEncoding = "error";
-    }
-
-    rows.push({
-      relativePath: rel,
-      sizeBytes: st.size,
-      firstLine,
-      textEncoding,
-    });
-  }
-
-  return rows;
+function manifestEntryFromFile(
+  bucket: string,
+  file: import("@google-cloud/storage").File,
+): ManifestEntry {
+  const meta = file.metadata;
+  const size =
+    typeof meta.size === "string" ? parseInt(meta.size, 10) : Number(meta.size ?? 0);
+  const gen = meta.generation;
+  const md5 = meta.md5Hash;
+  const crc = meta.crc32c;
+  return {
+    generation: gen == null ? undefined : String(gen),
+    md5Hash: md5 == null ? undefined : String(md5),
+    crc32c: crc == null ? undefined : String(crc),
+    size: Number.isFinite(size) ? size : 0,
+    downloadedAt: new Date().toISOString(),
+  };
 }
 
 /**
- * Lists Play bulk-report objects in GCS, downloads new/changed blobs, updates manifest + inventory.
+ * Streams Play bulk-report objects from GCS and downloads each file one-by-one (no full in-memory listing, no inventory preview).
  * Triggered by the in-process scheduler ([playstore-scheduler.ts](../../playstore-scheduler.ts)) when enabled.
  */
 export async function runPlaystoreReportDownload(): Promise<void> {
@@ -123,30 +83,37 @@ export async function runPlaystoreReportDownload(): Promise<void> {
   await mkdir(base, { recursive: true });
 
   const manifestPath = path.join(base, "manifest.json");
-  const inventoryPath = path.join(base, "inventory.json");
 
   const storage = storageFromEnv();
-  console.log(`${LOG} Listing gs://${bucket}/ …`);
-  const blobs = await listReportBlobs(storage, bucket, {
-    prefixes: PLAYSTORE_REPORT_PREFIXES,
-    packageName: pkg,
-  });
-
-  console.log(`${LOG} ${blobs.length} object(s) after package filter`);
+  console.log(
+    `${LOG} Streaming gs://${bucket}/ (prefixes: ${PLAYSTORE_REPORT_PREFIXES.join(", ")}) — download one object at a time`,
+  );
 
   const manifest: ManifestFile = await loadManifest(manifestPath);
   let downloaded = 0;
   let skipped = 0;
+  let seen = 0;
 
-  for (const blob of blobs) {
-    const dest = objectToLocalFile(base, blob.name);
-    const prev = manifest.entries[blob.name];
+  for await (const file of iterReportFiles(storage, bucket, {
+    prefixes: PLAYSTORE_REPORT_PREFIXES,
+    packageName: pkg,
+  })) {
+    seen++;
+    const objectName = file.name;
+    const dest = objectToLocalFile(base, objectName);
+    const prev = manifest.entries[objectName];
+
+    const meta = file.metadata;
+    const size =
+      typeof meta.size === "string" ? parseInt(meta.size, 10) : Number(meta.size ?? 0);
+    const generation = meta.generation == null ? undefined : String(meta.generation);
+    const md5Hash = meta.md5Hash == null ? undefined : String(meta.md5Hash);
 
     if (
       entryUnchanged(prev, {
-        generation: blob.generation,
-        md5Hash: blob.md5Hash,
-        size: blob.size,
+        generation,
+        md5Hash,
+        size: Number.isFinite(size) ? size : 0,
       })
     ) {
       skipped++;
@@ -154,30 +121,13 @@ export async function runPlaystoreReportDownload(): Promise<void> {
     }
 
     await ensureParentDir(dest);
-    console.log(`${LOG} fetch ${blob.name} → ${dest}`);
-    await downloadBlobToFile(storage, bucket, blob.name, dest);
+    console.log(`${LOG} [${seen}] fetch ${objectName} → ${dest}`);
+    await downloadBlobToFile(storage, bucket, objectName, dest);
 
-    const entry: ManifestEntry = {
-      generation: blob.generation,
-      md5Hash: blob.md5Hash,
-      crc32c: blob.crc32c,
-      size: blob.size,
-      downloadedAt: new Date().toISOString(),
-    };
-    manifest.entries[blob.name] = entry;
+    manifest.entries[objectName] = manifestEntryFromFile(bucket, file);
     downloaded++;
+    await saveManifest(manifestPath, manifest);
   }
 
-  await saveManifest(manifestPath, manifest);
-
-  console.log(`${LOG} Done. Downloaded: ${downloaded}, unchanged skipped: ${skipped}`);
-
-  console.log(`${LOG} Building inventory…`);
-  const inventory = await buildInventory(base);
-  await writeFile(
-    inventoryPath,
-    JSON.stringify({ generatedAt: new Date().toISOString(), files: inventory }, null, 2),
-    "utf8",
-  );
-  console.log(`${LOG} Wrote ${inventoryPath} (${inventory.length} files)`);
+  console.log(`${LOG} Done. Objects seen: ${seen}, downloaded: ${downloaded}, unchanged skipped: ${skipped}`);
 }

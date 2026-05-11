@@ -1,5 +1,5 @@
 /**
- * Peek at the first logical line of a bulk-report file for inventory (CSV header).
+ * Peek at the first logical line of a bulk-report file (e.g. UTF-16 CSV header) for future parsers.
  * Play CSV reports are typically UTF-16 LE with BOM; fall back to UTF-8.
  */
 const MAX_PEEK = 256 * 1024;

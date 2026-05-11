@@ -1,3 +1,5 @@
+import { inspect } from "node:util";
+
 import schedule from "node-schedule";
 
 import { runPlaystoreReportDownload } from "./services/playstore/download-reports.ts";
@@ -74,12 +76,14 @@ async function runScheduledDownload(): Promise<void> {
   try {
     await runPlaystoreReportDownload();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`${LOG} Scheduled run failed: ${msg}`);
-    if (/storage\.objects\.(list|get)|does not have storage/i.test(msg)) {
-      console.error(
-        `${LOG} Access denied on GCS — see analytics/api/docs/playstore-download-cron.md (Troubleshooting). Invite the SAME email as client_email in your service account JSON under Play Console → Users and permissions with "View app information and download bulk reports". Confirm PLAYSTORE_GCS_BUCKET matches Play Console → Download reports. Propagation can take up to 24 hours.`,
-      );
-    }
+    console.error(`${LOG} Scheduled run failed`);
+    console.error(
+      inspect(err, {
+        depth: 8,
+        maxArrayLength: 20,
+        breakLength: 120,
+        getters: true,
+      }),
+    );
   }
 }

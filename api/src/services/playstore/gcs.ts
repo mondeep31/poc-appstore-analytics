@@ -2,6 +2,9 @@ import { Storage } from "@google-cloud/storage";
 import type { File } from "@google-cloud/storage";
 import { PLAYSTORE_REPORT_PREFIXES } from "./constants.ts";
 
+/** OAuth scope required by Google for Play bulk report downloads — see support answer 6135870. */
+export const PLAYSTORE_GCS_SCOPE = "https://www.googleapis.com/auth/devstorage.read_only";
+
 /** Path from GOOGLE_APPLICATION_CREDENTIALS (service account JSON). */
 export function storageFromEnv(): Storage {
   const keyFilename = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
@@ -10,36 +13,10 @@ export function storageFromEnv(): Storage {
       "Set GOOGLE_APPLICATION_CREDENTIALS to the path of your GCS service account JSON",
     );
   }
-  return new Storage({ keyFilename });
-}
-
-export interface ListedBlob {
-  name: string;
-  bucket: string;
-  size: number;
-  generation?: string;
-  md5Hash?: string;
-  crc32c?: string;
-  updated?: string;
-}
-
-function metadataString(value: string | number | undefined | null): string | undefined {
-  if (value == null) return undefined;
-  return String(value);
-}
-
-function fileToListedBlob(bucketName: string, file: File): ListedBlob {
-  const meta = file.metadata;
-  const size = typeof meta.size === "string" ? parseInt(meta.size, 10) : Number(meta.size ?? 0);
-  return {
-    name: file.name,
-    bucket: bucketName,
-    size: Number.isFinite(size) ? size : 0,
-    generation: metadataString(meta.generation),
-    md5Hash: metadataString(meta.md5Hash),
-    crc32c: metadataString(meta.crc32c),
-    updated: metadataString(meta.updated),
-  };
+  return new Storage({
+    keyFilename,
+    scopes: [PLAYSTORE_GCS_SCOPE],
+  });
 }
 
 /**
@@ -58,32 +35,35 @@ export function matchesPackageFilter(blobName: string, packageName: string | und
   return blobName.includes(token);
 }
 
-export async function listReportBlobs(
+/**
+ * Stream matching report objects from GCS (paginated list) and yield each file.
+ * Consume sequentially and download one-by-one — avoids holding the full object list in memory.
+ */
+export async function* iterReportFiles(
   storage: Storage,
   bucketName: string,
   options: {
     prefixes?: readonly string[];
     packageName?: string;
   } = {},
-): Promise<ListedBlob[]> {
-  const prefixes =
-    options.prefixes ?? [...PLAYSTORE_REPORT_PREFIXES];
+): AsyncGenerator<File> {
+  const prefixes = options.prefixes ?? [...PLAYSTORE_REPORT_PREFIXES];
   const bucket = storage.bucket(bucketName);
   const seen = new Set<string>();
-  const out: ListedBlob[] = [];
 
   for (const prefix of prefixes) {
-    const [files] = await bucket.getFiles({ prefix, autoPaginate: true });
-    for (const file of files) {
-      if (seen.has(file.name)) continue;
-      if (!matchesPackageFilter(file.name, options.packageName)) continue;
-      seen.add(file.name);
-      out.push(fileToListedBlob(bucketName, file));
+    const stream = bucket.getFilesStream({ prefix });
+    for await (const chunk of stream as AsyncIterable<File | File[]>) {
+      const batch = Array.isArray(chunk) ? chunk : [chunk];
+      for (const file of batch) {
+        if (!file?.name) continue;
+        if (seen.has(file.name)) continue;
+        if (!matchesPackageFilter(file.name, options.packageName)) continue;
+        seen.add(file.name);
+        yield file;
+      }
     }
   }
-
-  out.sort((a, b) => a.name.localeCompare(b.name));
-  return out;
 }
 
 export async function downloadBlobToFile(

@@ -1,6 +1,6 @@
 # Play Store bulk reports — scheduled download
 
-Phase 1 tool: mirrors Play Console export objects from your linked **Google Cloud Storage** bucket to local disk and writes `manifest.json` + `inventory.json` for field discovery.
+Phase 1 tool: mirrors Play Console export objects from your linked **Google Cloud Storage** bucket to local disk. Objects are **streamed** from GCS and **downloaded one at a time** (no in-memory full listing, no CSV header inventory file).
 
 ## Prerequisites
 
@@ -24,12 +24,12 @@ GCP IAM roles on your own project do **not** replace Play’s bucket ACL for `pu
 
 See [analytics/api/.env.example](../.env.example) — keys:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `PLAYSTORE_GCS_BUCKET` | Yes | Bucket name only (no `gs://`). |
-| `PLAYSTORE_PACKAGE_NAME` | Strongly recommended | Filters objects whose paths contain the package with `.` → `_`. |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Yes | Path to service account JSON (same convention as Google client libraries). |
-| `PLAYSTORE_RAW_DIR` | No | Defaults to `data/playstore/raw` under `analytics/api`. |
+| Variable                         | Required             | Description                                                                |
+| -------------------------------- | -------------------- | -------------------------------------------------------------------------- |
+| `PLAYSTORE_GCS_BUCKET`           | Yes                  | Bucket name only (no `gs://`).                                             |
+| `PLAYSTORE_PACKAGE_NAME`         | Strongly recommended | Filters objects whose paths contain the package with `.` → `_`.            |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Yes                  | Path to service account JSON (same convention as Google client libraries). |
+| `PLAYSTORE_RAW_DIR`              | No                   | Defaults to `data/playstore/raw` under `analytics/api`.                    |
 
 Prefixes fetched: `reviews/`, `stats/installs/`, `stats/ratings/`, `stats/store_performance/`, `stats/crashes/`.
 
@@ -37,11 +37,11 @@ Prefixes fetched: `reviews/`, `stats/installs/`, `stats/ratings/`, `stats/store_
 
 When the **analytics API** starts, [`node-schedule`](https://github.com/node-schedule/node-schedule) can register the GCS mirror job:
 
-| Variable | Description |
-|----------|-------------|
-| `PLAYSTORE_DOWNLOAD_SCHEDULE_ENABLED` | Set to `true` / `1` / `yes` to enable. |
-| `PLAYSTORE_DOWNLOAD_CRON` | Optional. Default `5 18 * * *` — **6:05 PM** wall clock in `PLAYSTORE_DOWNLOAD_TZ`. |
-| `PLAYSTORE_DOWNLOAD_TZ` | Optional IANA zone. Default **`Asia/Kolkata`** (IST). The cron expression is always interpreted in this timezone. |
+| Variable                              | Description                                                                                                       |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `PLAYSTORE_DOWNLOAD_SCHEDULE_ENABLED` | Set to `true` / `1` / `yes` to enable.                                                                            |
+| `PLAYSTORE_DOWNLOAD_CRON`             | Optional. Default `5 18 * * *` — **6:05 PM** wall clock in `PLAYSTORE_DOWNLOAD_TZ`.                               |
+| `PLAYSTORE_DOWNLOAD_TZ`               | Optional IANA zone. Default **`Asia/Kolkata`** (IST). The cron expression is always interpreted in this timezone. |
 
 Requirements when enabled: `PLAYSTORE_GCS_BUCKET` and `GOOGLE_APPLICATION_CREDENTIALS`.
 
@@ -69,8 +69,7 @@ bun -e "import { runPlaystoreReportDownload } from './src/services/playstore/dow
 Inside `PLAYSTORE_RAW_DIR`:
 
 - Mirrored objects preserving `object/name/path.csv`.
-- `manifest.json` — last known `generation` / `md5Hash` / size per object; skips unchanged downloads.
-- `inventory.json` — each file’s size and best-effort **first line** (CSV header) after UTF-16/UTF-8 sniff.
+- `manifest.json` — last known `generation` / `md5Hash` / size per object; updated after each successful download; skips unchanged objects on the next run.
 
 ## Health check
 
