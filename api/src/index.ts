@@ -7,6 +7,7 @@ import appsRouter from "./routes/appstore/apps.ts";
 import salesRouter from "./routes/appstore/sales.ts";
 import reviewsRouter from "./routes/appstore/reviews.ts";
 import { authMiddleware } from "./middleware/auth.ts";
+import { startPlaystoreDownloadScheduler } from "./playstore-scheduler.ts";
 
 const app = new Hono();
 
@@ -30,6 +31,17 @@ app.get("/health", (c) =>
       hasApplePrivateKey: !!process.env.APPLE_PRIVATE_KEY_BASE64,
       hasVendorNumber: !!process.env.APPLE_VENDOR_NUMBER,
       appId: process.env.APPLE_APP_ID ?? "not set",
+      playstore: {
+        hasGcsBucket: !!process.env.PLAYSTORE_GCS_BUCKET?.trim(),
+        hasPackageName: !!process.env.PLAYSTORE_PACKAGE_NAME?.trim(),
+        hasGoogleAppCredsPath: !!process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim(),
+        rawDir: process.env.PLAYSTORE_RAW_DIR?.trim() || "(default data/playstore/raw)",
+        downloadScheduleEnabled: ["1", "true", "yes"].includes(
+          (process.env.PLAYSTORE_DOWNLOAD_SCHEDULE_ENABLED ?? "").trim().toLowerCase(),
+        ),
+        downloadCron: process.env.PLAYSTORE_DOWNLOAD_CRON?.trim() || "(default 5 18 * * *)",
+        downloadTz: process.env.PLAYSTORE_DOWNLOAD_TZ?.trim() || "(default Asia/Kolkata IST)",
+      },
     },
   })
 );
@@ -52,6 +64,8 @@ app.onError((err, c) => {
 const port = parseInt(process.env.PORT ?? "4000", 10);
 
 console.log(`🚀 Analytics API running on http://localhost:${port}`);
+
+startPlaystoreDownloadScheduler();
 
 export default {
   port,

@@ -1,2 +1,7 @@
 node_modules
 .env
+
+# Play Console bulk report mirror + manifests (do not commit)
+data/playstore/
+
+tradesea-serviceacc.json
