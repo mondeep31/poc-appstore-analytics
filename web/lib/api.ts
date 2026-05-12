@@ -102,6 +102,101 @@ export const api = {
     if (params.cursor) q.set("cursor", params.cursor);
     return request<ReviewsResponse>(`/api/appstore/reviews?${q}`);
   },
+
+  playstoreOverview: (params: { startDate: string; endDate: string }) => {
+    const q = new URLSearchParams(params);
+    return request<PlaystoreOverviewResponse>(`/api/playstore/overview?${q}`);
+  },
+
+  playstoreTrend: (params: { startDate: string; endDate: string }) => {
+    const q = new URLSearchParams(params);
+    return request<PlaystoreTrendResponse>(`/api/playstore/trend?${q}`);
+  },
+
+  playstoreCountries: (params: { startDate: string; endDate: string; limit?: number }) => {
+    const q = new URLSearchParams({
+      startDate: params.startDate,
+      endDate: params.endDate,
+    });
+    if (params.limit != null) q.set("limit", String(params.limit));
+    return request<PlaystoreCountriesResponse>(`/api/playstore/countries?${q}`);
+  },
+
+  playstoreReviews: (params: {
+    startDate: string;
+    endDate: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const q = new URLSearchParams({
+      startDate: params.startDate,
+      endDate: params.endDate,
+    });
+    if (params.limit != null) q.set("limit", String(params.limit));
+    if (params.offset != null) q.set("offset", String(params.offset));
+    return request<PlaystoreReviewsResponse>(`/api/playstore/reviews?${q}`);
+  },
+
+  playstoreCrashesTrend: (params: { startDate: string; endDate: string }) => {
+    const q = new URLSearchParams(params);
+    return request<PlaystoreCrashesTrendResponse>(`/api/playstore/crashes/trend?${q}`);
+  },
+
+  playstoreCrashesDevices: (params: {
+    startDate: string;
+    endDate: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const q = new URLSearchParams({
+      startDate: params.startDate,
+      endDate: params.endDate,
+    });
+    if (params.limit != null) q.set("limit", String(params.limit));
+    if (params.offset != null) q.set("offset", String(params.offset));
+    return request<PlaystoreCrashesDevicesResponse>(`/api/playstore/crashes/devices?${q}`);
+  },
+
+  playstoreCrashesAppVersions: (params: {
+    startDate: string;
+    endDate: string;
+    limit?: number;
+  }) => {
+    const q = new URLSearchParams({
+      startDate: params.startDate,
+      endDate: params.endDate,
+    });
+    if (params.limit != null) q.set("limit", String(params.limit));
+    return request<PlaystoreCrashesAppVersionsResponse>(`/api/playstore/crashes/app-versions?${q}`);
+  },
+
+  playstoreCrashesOsVersions: (params: {
+    startDate: string;
+    endDate: string;
+    limit?: number;
+  }) => {
+    const q = new URLSearchParams({
+      startDate: params.startDate,
+      endDate: params.endDate,
+    });
+    if (params.limit != null) q.set("limit", String(params.limit));
+    return request<PlaystoreCrashesOsVersionsResponse>(`/api/playstore/crashes/os-versions?${q}`);
+  },
+
+  playstoreCrashesDimensionTrends: (params: {
+    startDate: string;
+    endDate: string;
+    topN?: number;
+  }) => {
+    const q = new URLSearchParams({
+      startDate: params.startDate,
+      endDate: params.endDate,
+    });
+    if (params.topN != null) q.set("topN", String(params.topN));
+    return request<PlaystoreCrashesDimensionTrendsResponse>(
+      `/api/playstore/crashes/dimension-trends?${q}`,
+    );
+  },
 };
 
 export interface SalesResponse {
@@ -152,4 +247,94 @@ export interface ReviewsResponse {
   reviews: CustomerReview[];
   totalCount: number;
   nextCursor?: string;
+}
+
+export interface PlaystoreOverviewResponse {
+  startDate: string;
+  endDate: string;
+  totalInstalls: number;
+  totalUninstalls: number;
+  topCountry: string | null;
+  topCountryDownloads: number;
+  avgRating: number | null;
+  countriesCount: number;
+}
+
+export interface PlaystoreTrendResponse {
+  startDate: string;
+  endDate: string;
+  trend: Array<{ date: string; installs: number; uninstalls: number }>;
+}
+
+export interface PlaystoreCountriesResponse {
+  startDate: string;
+  endDate: string;
+  countries: Array<{ country: string; downloads: number }>;
+}
+
+export interface PlaystoreReviewRow {
+  id: string;
+  appVersionCode: number | null;
+  appVersionName: string | null;
+  reviewerLanguage: string | null;
+  device: string | null;
+  submittedAt: string | null;
+  lastUpdatedAt: string | null;
+  rating: number | null;
+  title: string;
+  body: string;
+  developerRepliedAt: string | null;
+  developerReplyText: string | null;
+  reviewLink: string | null;
+}
+
+export interface PlaystoreReviewsResponse {
+  startDate: string;
+  endDate: string;
+  total: number;
+  reviews: PlaystoreReviewRow[];
+}
+
+export interface PlaystoreCrashesTrendResponse {
+  startDate: string;
+  endDate: string;
+  trend: Array<{ date: string; crashes: number; anrs: number }>;
+}
+
+export interface PlaystoreCrashesDevicesResponse {
+  startDate: string;
+  endDate: string;
+  limit: number;
+  offset: number;
+  total: number;
+  rows: Array<{ date: string; device: string; crashes: number; anrs: number }>;
+}
+
+export interface PlaystoreCrashesAppVersionsResponse {
+  startDate: string;
+  endDate: string;
+  limit: number;
+  versions: Array<{ appVersionCode: number; crashes: number; anrs: number }>;
+}
+
+export interface PlaystoreCrashesOsVersionsResponse {
+  startDate: string;
+  endDate: string;
+  limit: number;
+  osVersions: Array<{ osVersion: string; crashes: number; anrs: number }>;
+}
+
+export interface PlaystoreCrashesDimensionTrendsResponse {
+  startDate: string;
+  endDate: string;
+  topN: number;
+  note: string;
+  osTrends: Array<{
+    osVersion: string;
+    series: Array<{ date: string; crashes: number; anrs: number }>;
+  }>;
+  appTrends: Array<{
+    appVersionCode: number;
+    series: Array<{ date: string; crashes: number; anrs: number }>;
+  }>;
 }

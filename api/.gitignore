@@ -1,2 +1,12 @@
 node_modules
 .env
+
+# Play Console bulk report mirror + manifests (do not commit)
+data/playstore/
+
+# Local analytics SQLite
+data/analytics.db
+data/analytics.db-wal
+data/analytics.db-shm
+
+tradesea-serviceacc.json
