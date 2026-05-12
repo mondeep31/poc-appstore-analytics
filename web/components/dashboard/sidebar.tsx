@@ -9,12 +9,52 @@ import {
   MessageSquare,
   LogOut,
   LayoutDashboard,
+  Smartphone,
+  Bug,
 } from "lucide-react";
 
-const NAV_ITEMS = [
+const APPSTORE_NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/reviews", label: "Reviews", icon: MessageSquare },
 ];
+
+const PLAYSTORE_NAV = [
+  { href: "/playstore", label: "Overview", icon: LayoutDashboard },
+  { href: "/playstore/reviews", label: "Reviews", icon: MessageSquare },
+  { href: "/playstore/crashes", label: "Crashes", icon: Bug },
+];
+
+function isNavActive(href: string, pathname: string | null): boolean {
+  if (!pathname) return false;
+  if (href === "/") return pathname === "/";
+  if (href === "/playstore") return pathname === "/playstore";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function NavLink({
+  item,
+  pathname,
+}: {
+  item: { href: string; label: string; icon: typeof LayoutDashboard };
+  pathname: string | null;
+}) {
+  const isActive = isNavActive(item.href, pathname);
+  return (
+    <Link
+      href={item.href}
+      className={cn(
+        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
+        isActive
+          ? "bg-primary/12 text-primary font-medium"
+          : "text-sidebar-foreground/70 hover:bg-accent hover:text-sidebar-foreground",
+      )}
+    >
+      <item.icon className="h-4 w-4 shrink-0" />
+      {item.label}
+      {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />}
+    </Link>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -51,27 +91,19 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-3 flex flex-col gap-0.5 overflow-y-auto">
-        {NAV_ITEMS.map((item) => {
-          const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-primary/12 text-primary font-medium"
-                  : "text-sidebar-foreground/70 hover:bg-accent hover:text-sidebar-foreground"
-              )}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {item.label}
-              {isActive && (
-                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
-              )}
-            </Link>
-          );
-        })}
+        {APPSTORE_NAV.map((item) => (
+          <NavLink key={item.href} item={item} pathname={pathname} />
+        ))}
+
+        <div className="px-2.5 pt-4 pb-1">
+          <div className="flex items-center gap-2 rounded-md bg-emerald-500/10 px-2 py-1.5 ring-1 ring-emerald-500/20">
+            <Smartphone className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Google Play</span>
+          </div>
+        </div>
+        {PLAYSTORE_NAV.map((item) => (
+          <NavLink key={item.href} item={item} pathname={pathname} />
+        ))}
       </nav>
 
       {/* User + logout */}

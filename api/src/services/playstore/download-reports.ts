@@ -14,14 +14,19 @@ import {
   type ManifestEntry,
   type ManifestFile,
 } from "./manifest.ts";
+import { gcsPrefixesForMonth, getMonthsToSync } from "./months.ts";
 
 const LOG = "[playstore-download]";
 
-function rawDir(): string {
+export function playstoreRawDir(): string {
   return (
     process.env.PLAYSTORE_RAW_DIR?.trim() ||
     path.join(process.cwd(), "data", "playstore", "raw")
   );
+}
+
+function rawDir(): string {
+  return playstoreRawDir();
 }
 
 function bucketName(): string {
@@ -32,9 +37,13 @@ function bucketName(): string {
   return b.replace(/^gs:\/\//, "");
 }
 
-function packageName(): string | undefined {
+export function playstorePackageName(): string | undefined {
   const p = process.env.PLAYSTORE_PACKAGE_NAME?.trim();
   return p || undefined;
+}
+
+function packageName(): string | undefined {
+  return playstorePackageName();
 }
 
 function objectToLocalFile(base: string, objectName: string): string {
@@ -74,20 +83,27 @@ export async function runPlaystoreReportDownload(): Promise<void> {
   const bucket = bucketName();
   const pkg = packageName();
 
-  if (!pkg) {
-    console.warn(
-      `${LOG} PLAYSTORE_PACKAGE_NAME is unset — downloading all objects matching prefixes (may include other apps).`,
-    );
-  }
-
   await mkdir(base, { recursive: true });
 
   const manifestPath = path.join(base, "manifest.json");
 
   const storage = storageFromEnv();
-  console.log(
-    `${LOG} Streaming gs://${bucket}/ (prefixes: ${PLAYSTORE_REPORT_PREFIXES.join(", ")}) — download one object at a time`,
-  );
+
+  let prefixes: readonly string[];
+  if (pkg) {
+    const months = getMonthsToSync(base, pkg);
+    prefixes = months.flatMap((ym) => gcsPrefixesForMonth(pkg, ym));
+    console.log(
+      `${LOG} Syncing ${months.length} month(s): ${months.join(", ")} — ${prefixes.length} GCS prefix(es)`,
+    );
+  } else {
+    console.warn(
+      `${LOG} PLAYSTORE_PACKAGE_NAME is unset — listing full top-level prefixes (all months, all apps in bucket).`,
+    );
+    prefixes = PLAYSTORE_REPORT_PREFIXES;
+  }
+
+  console.log(`${LOG} Streaming gs://${bucket}/ — download one object at a time`);
 
   const manifest: ManifestFile = await loadManifest(manifestPath);
   let downloaded = 0;
@@ -95,7 +111,7 @@ export async function runPlaystoreReportDownload(): Promise<void> {
   let seen = 0;
 
   for await (const file of iterReportFiles(storage, bucket, {
-    prefixes: PLAYSTORE_REPORT_PREFIXES,
+    prefixes,
     packageName: pkg,
   })) {
     seen++;

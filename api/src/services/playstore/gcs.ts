@@ -20,19 +20,26 @@ export function storageFromEnv(): Storage {
 }
 
 /**
- * Package appears in Play filenames as dots → underscores (e.g. com.foo.bar → com_foo_bar).
+ * Package appears in Play bulk-report filenames with dots preserved
+ * (e.g. reviews_ai.tradesea.app_202602.csv).
  */
 export function packageFilenameToken(packageName: string): string {
-  return packageName.trim().replace(/\./g, "_");
+  return packageName.trim();
 }
 
 /**
  * Include blob if package filter matches filename, or no filter is set.
+ * Accepts both dotted (current Play format) and underscored (legacy) variants.
  */
-export function matchesPackageFilter(blobName: string, packageName: string | undefined): boolean {
-  if (!packageName?.trim()) return true;
-  const token = packageFilenameToken(packageName);
-  return blobName.includes(token);
+export function matchesPackageFilter(
+  blobName: string,
+  packageName: string | undefined,
+): boolean {
+  const pkg = packageName?.trim();
+  if (!pkg) return true;
+  const dotted = pkg;
+  const underscored = pkg.replace(/\./g, "_");
+  return blobName.includes(dotted) || blobName.includes(underscored);
 }
 
 /**
@@ -52,7 +59,13 @@ export async function* iterReportFiles(
   const seen = new Set<string>();
 
   for (const prefix of prefixes) {
-    const stream = bucket.getFilesStream({ prefix });
+    const p = prefix.trim();
+    if (!p) {
+      throw new Error(
+        "Empty GCS prefix is not allowed for Play export buckets — listing the bucket root may be denied (403). Use strict prefixes such as stats/installs/ or reviews/.",
+      );
+    }
+    const stream = bucket.getFilesStream({ prefix: p });
     for await (const chunk of stream as AsyncIterable<File | File[]>) {
       const batch = Array.isArray(chunk) ? chunk : [chunk];
       for (const file of batch) {
@@ -66,6 +79,8 @@ export async function* iterReportFiles(
   }
 }
 
+const runningOnBun = typeof process.versions.bun === "string";
+
 export async function downloadBlobToFile(
   storage: Storage,
   bucketName: string,
@@ -74,5 +89,13 @@ export async function downloadBlobToFile(
 ): Promise<void> {
   const bucket = storage.bucket(bucketName);
   const file = bucket.file(objectName);
-  await file.download({ destination: destPath });
+  // Under Bun, @google-cloud/storage + the HTTP stack often disagree with Node:
+  // - CRC32C validation can false-positive (CONTENT_DOWNLOAD_MISMATCH).
+  // - Responses may already be gunzipped by the runtime while headers still say
+  //   gzip; the client's extra createGunzip() then hits plain text → Z_DATA_ERROR
+  //   ("incorrect header check"). Skip client decompress + validation on Bun only.
+  await file.download({
+    destination: destPath,
+    ...(runningOnBun ? { validation: false, decompress: false } : {}),
+  });
 }

@@ -30,6 +30,8 @@ interface FilterBarProps {
   onRefresh?: () => void;
   isLoading?: boolean;
   dataFreshnessNote?: string;
+  /** Days to subtract from "today" for the end of quick-pick ranges (Apple sales lag ~2d). Use 0 for Play Store. */
+  quickRangeEndOffsetDays?: number;
 }
 
 const QUICK_RANGES = [
@@ -48,6 +50,7 @@ export function FilterBar({
   onRefresh,
   isLoading,
   dataFreshnessNote,
+  quickRangeEndOffsetDays = 2,
 }: FilterBarProps) {
   const [calOpen, setCalOpen] = useState(false);
   const [range, setRange] = useState<DateRange>({
@@ -69,7 +72,7 @@ export function FilterBar({
   }
 
   function handleQuickRange(days: number) {
-    const to = subDays(new Date(), 2); // Apple data lag ~2 days
+    const to = subDays(new Date(), quickRangeEndOffsetDays);
     const from = subDays(to, days - 1);
     onDateRangeChange({ from, to });
   }

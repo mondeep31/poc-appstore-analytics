@@ -2,6 +2,8 @@
 
 Phase 1 tool: mirrors Play Console export objects from your linked **Google Cloud Storage** bucket to local disk. Objects are **streamed** from GCS and **downloaded one at a time** (no in-memory full listing, no CSV header inventory file).
 
+**Full pipeline** (cron → download → ingest → DB schema → API): see [playstore-pipeline.md](./playstore-pipeline.md).
+
 ## Prerequisites
 
 - Service account invited in Play Console with permission to **view app information and download bulk reports** (and bucket access via GCP).
@@ -40,10 +42,10 @@ When the **analytics API** starts, [`node-schedule`](https://github.com/node-sch
 | Variable                              | Description                                                                                                       |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `PLAYSTORE_DOWNLOAD_SCHEDULE_ENABLED` | Set to `true` / `1` / `yes` to enable.                                                                            |
-| `PLAYSTORE_DOWNLOAD_CRON`             | Optional. Default `5 18 * * *` — **6:05 PM** wall clock in `PLAYSTORE_DOWNLOAD_TZ`.                               |
-| `PLAYSTORE_DOWNLOAD_TZ`               | Optional IANA zone. Default **`Asia/Kolkata`** (IST). The cron expression is always interpreted in this timezone. |
+| `PLAYSTORE_DOWNLOAD_CRON`             | **Required** when schedule is enabled. Cron: minute hour dom month weekday (no default in code — set in `.env`; see `.env.example`). |
+| `PLAYSTORE_DOWNLOAD_TZ`               | Optional IANA zone. If unset, the cron runs in the **server's local** timezone (with a startup warning).                             |
 
-Requirements when enabled: `PLAYSTORE_GCS_BUCKET` and `GOOGLE_APPLICATION_CREDENTIALS`.
+Requirements when enabled: `PLAYSTORE_GCS_BUCKET`, `GOOGLE_APPLICATION_CREDENTIALS`, and **`PLAYSTORE_DOWNLOAD_CRON`**.
 
 **Production note:** enable this on **one** API replica only; otherwise each instance will run the same job and duplicate GCS traffic.
 

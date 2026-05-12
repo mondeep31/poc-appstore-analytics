@@ -2,14 +2,14 @@ import { inspect } from "node:util";
 
 import schedule from "node-schedule";
 
-import { runPlaystoreReportDownload } from "./services/playstore/download-reports.ts";
+import {
+  playstorePackageName,
+  playstoreRawDir,
+  runPlaystoreReportDownload,
+} from "./services/playstore/download-reports.ts";
+import { runPlaystoreIngest } from "./services/playstore/ingest-csv.ts";
 
 const LOG = "[playstore-scheduler]";
-
-/** Default: 6:05 PM IST daily (minute hour dom month dow). */
-const DEFAULT_CRON = "5 18 * * *";
-/** India Standard Time — matches Play Console-friendly reporting cadence for Indian ops. */
-const DEFAULT_TZ = "Asia/Kolkata";
 
 function hasPlaystoreCredentials(): boolean {
   return !!process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
@@ -47,13 +47,24 @@ export function startPlaystoreDownloadScheduler(): void {
     return;
   }
 
-  const cronExpr = process.env.PLAYSTORE_DOWNLOAD_CRON?.trim() || DEFAULT_CRON;
-  const tz = process.env.PLAYSTORE_DOWNLOAD_TZ?.trim() || DEFAULT_TZ;
+  const cronExpr = process.env.PLAYSTORE_DOWNLOAD_CRON?.trim();
+  if (!cronExpr) {
+    console.warn(
+      `${LOG} PLAYSTORE_DOWNLOAD_SCHEDULE_ENABLED is set but PLAYSTORE_DOWNLOAD_CRON is missing; scheduler not started. Set it in env (see .env.example).`,
+    );
+    return;
+  }
 
-  const job = schedule.scheduleJob(
-    { rule: cronExpr, tz },
-    () => void runScheduledDownload(),
-  );
+  const tz = process.env.PLAYSTORE_DOWNLOAD_TZ?.trim();
+  if (!tz) {
+    console.warn(
+      `${LOG} PLAYSTORE_DOWNLOAD_TZ unset; cron runs in the server's local timezone. Set PLAYSTORE_DOWNLOAD_TZ for wall-clock zones (e.g. Asia/Kolkata).`,
+    );
+  }
+
+  const job = tz
+    ? schedule.scheduleJob({ rule: cronExpr, tz }, () => void runScheduledDownload())
+    : schedule.scheduleJob(cronExpr, () => void runScheduledDownload());
 
   if (!job) {
     console.error(`${LOG} Invalid cron expression: ${cronExpr}`);
@@ -64,17 +75,18 @@ export function startPlaystoreDownloadScheduler(): void {
     typeof job.nextInvocation === "function" ? job.nextInvocation() : null;
   const nextHint =
     next instanceof Date && !Number.isNaN(next.getTime())
-      ? ` Next run: ${next.toISOString()} (${tz}).`
+      ? ` Next run: ${next.toISOString()} (${tz ?? "server local"}).`
       : "";
 
   console.log(
-    `${LOG} Registered: cron "${cronExpr}" in ${tz}.${nextHint} Play bulk report download.`,
+    `${LOG} Registered: cron "${cronExpr}"${tz ? ` in ${tz}` : " (server local)"}.${nextHint} Play bulk report download.`,
   );
 }
 
 async function runScheduledDownload(): Promise<void> {
   try {
     await runPlaystoreReportDownload();
+    await runPlaystoreIngest(playstoreRawDir(), playstorePackageName());
   } catch (err) {
     console.error(`${LOG} Scheduled run failed`);
     console.error(
