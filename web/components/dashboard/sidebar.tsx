@@ -74,7 +74,7 @@ export function Sidebar() {
           <BarChart3 className="h-3.5 w-3.5 text-primary" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold leading-tight truncate">TradeSea</p>
+          <p className="text-sm font-semibold leading-tight truncate">App</p>
           <p className="text-[10px] text-muted-foreground leading-tight">App Analytics</p>
         </div>
       </div>

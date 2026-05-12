@@ -21,7 +21,7 @@ export function storageFromEnv(): Storage {
 
 /**
  * Package appears in Play bulk-report filenames with dots preserved
- * (e.g. reviews_ai.tradesea.app_202602.csv).
+ * (e.g. reviews_com.example.app_202602.csv).
  */
 export function packageFilenameToken(packageName: string): string {
   return packageName.trim();

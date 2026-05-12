@@ -27,7 +27,7 @@ export function installsOverviewPath(rawBase: string, packageName: string, yyyyM
 }
 
 /**
- * GCS list prefixes for one month + package (dotted package id, e.g. ai.tradesea.app).
+ * GCS list prefixes for one month + package (dotted package id, e.g. com.example.app).
  */
 export function gcsPrefixesForMonth(packageName: string, yyyyMm: string): string[] {
   const p = packageName.trim();

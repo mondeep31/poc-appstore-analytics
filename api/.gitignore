@@ -9,4 +9,4 @@ data/analytics.db
 data/analytics.db-wal
 data/analytics.db-shm
 
-tradesea-serviceacc.json
+play-store-gcs-service-account.json

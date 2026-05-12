@@ -117,7 +117,7 @@ Under the raw dir (default `data/playstore/raw/manifest.json`), each object path
 | Variable | Role |
 |----------|------|
 | `PLAYSTORE_GCS_BUCKET` | Bucket id only (no `gs://`). **Required** for download. |
-| `PLAYSTORE_PACKAGE_NAME` | e.g. `ai.tradesea.app`. **Strongly recommended**; drives month-scoped prefixes and ingest filters. |
+| `PLAYSTORE_PACKAGE_NAME` | e.g. `com.example.app`. **Strongly recommended**; drives month-scoped prefixes and ingest filters. |
 | `PLAYSTORE_RAW_DIR` | Override mirror root. Default: `<cwd>/data/playstore/raw`. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON (GCS access + Play-linked account). |
 

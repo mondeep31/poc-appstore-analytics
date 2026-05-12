@@ -57,7 +57,7 @@ Use this when you prefer **system cron** instead of the in-process scheduler (sa
 
 ```cron
 # Example: cron host in UTC — 6:05 PM IST ≈ 12:35 UTC (IST = UTC+5:30)
-35 12 * * * cd /absolute/path/to/tradesea/analytics/api && /absolute/path/to/bun -e "import { runPlaystoreReportDownload } from './src/services/playstore/download-reports.ts'; await runPlaystoreReportDownload();" >> /var/log/playstore-download.log 2>&1
+35 12 * * * cd /absolute/path/to/analytics2/api && /absolute/path/to/bun -e "import { runPlaystoreReportDownload } from './src/services/playstore/download-reports.ts'; await runPlaystoreReportDownload();" >> /var/log/playstore-download.log 2>&1
 ```
 
 Manual run from `analytics/api`:

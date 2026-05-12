@@ -50,10 +50,10 @@ export default function LoginPage() {
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              TradeSea Analytics
+              App analytics
             </h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              App Store intelligence dashboard
+              App Store and Play Store metrics
             </p>
           </div>
         </div>

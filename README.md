@@ -1,4 +1,4 @@
-# TradeSea mobile analytics (App Store + Google Play)
+# Mobile app analytics (App Store + Google Play)
 
 A full-stack analytics dashboard: **Apple App Store Connect** APIs plus **Google Play** bulk reports mirrored from GCS into **SQLite** and served from the same API.
 
@@ -38,7 +38,7 @@ Play data comes from **bulk export objects in your linked GCS bucket** (not the 
 ```bash
 PLAYSTORE_GCS_BUCKET=           # Bucket id only (no gs://)
 PLAYSTORE_PACKAGE_NAME=         # e.g. com.example.app (dotted package id)
-GOOGLE_APPLICATION_CREDENTIALS= # Path to service account JSON (Play-invited SA)
+GOOGLE_APPLICATION_CREDENTIALS= # Path to service account JSON, e.g. ./play-store-gcs-service-account.json (Play-invited SA)
 # Optional: PLAYSTORE_RAW_DIR, PLAYSTORE_DOWNLOAD_SCHEDULE_ENABLED, PLAYSTORE_DOWNLOAD_CRON, PLAYSTORE_DOWNLOAD_TZ
 ```
 

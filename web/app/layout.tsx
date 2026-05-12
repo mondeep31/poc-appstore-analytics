@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TradeSea Analytics",
-  description: "App Store Analytics Dashboard",
+  title: "App analytics",
+  description: "App Store and Play Store analytics dashboard",
 };
 
 export default function RootLayout({
